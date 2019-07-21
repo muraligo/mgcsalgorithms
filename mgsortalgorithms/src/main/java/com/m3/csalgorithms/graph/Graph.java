@@ -1,6 +1,7 @@
 package com.m3.csalgorithms.graph;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import com.m3.csalgorithms.Pair;
@@ -29,6 +30,26 @@ public class Graph {
         for (Pair<Integer, Integer> edge : edges) {
             _vertices[edge.first()].add(edge.second());
             _edges[jx] = new Edge(edge.first(), edge.second());
+            jx++;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+	public Graph(int n, List<Pair<Integer, Integer>> edges, List<Integer> wghts) {
+        _numvertices = n;
+        _vertices = new ArrayList[n];
+        _edges = new Edge[edges.size()];
+        for (int ix = 0; ix < n; ix++) {
+            _vertices[ix] = new ArrayList<Integer>();
+        }
+        int jx = 0;
+        for (Pair<Integer, Integer> edge : edges) {
+            _vertices[edge.first()].add(edge.second());
+            if (wghts != null && !wghts.isEmpty()) {
+                _edges[jx] = new Edge(edge.first(), edge.second(), wghts.get(jx));
+            } else {
+                _edges[jx] = new Edge(edge.first(), edge.second());
+            }
             jx++;
         }
     }
@@ -170,6 +191,35 @@ public class Graph {
         return find(parent, parent[i]); 
     }
 
+    // A utility function to find set of an element i 
+    // (uses path compression technique) 
+    private int find(EdgeSubset subsets[], int i) { 
+        // find root and make root as parent of i (path compression) 
+        if (subsets[i].parent() != i) 
+            subsets[i].parent(find(subsets, subsets[i].parent())); 
+        return subsets[i].parent(); 
+    } 
+  
+    // A function that does union of two sets of x and y 
+    // (uses union by rank) 
+    private void union(EdgeSubset subsets[], int x, int y) { 
+        int xroot = find(subsets, x); 
+        int yroot = find(subsets, y); 
+  
+        // Attach smaller rank tree under root of high rank tree 
+        // (Union by Rank) 
+        if (subsets[xroot].rank() < subsets[yroot].rank()) 
+            subsets[xroot].parent(yroot); 
+        else if (subsets[xroot].rank() > subsets[yroot].rank()) 
+            subsets[yroot].parent(xroot); 
+        // If ranks are same, then make one as root and increment 
+        // its rank by one 
+        else { 
+            subsets[yroot].parent(xroot); 
+            subsets[xroot].rankInc(); 
+        }
+    }
+
     /*
      * Given a connected and undirected graph, a spanning tree of that graph 
      * is a subgraph that is a tree and connects all the vertices together. 
@@ -189,8 +239,53 @@ public class Graph {
      * This is a Greedy Algorithm in that, it picks the smallest weight edge 
      * that does not cause a cycle in the MST constructed so far.
      */
-    public List<Integer> minimumSpanningTreeKruskal(int start) {
-        final List<Integer> result = new ArrayList<Integer>();
+    public Edge[] minimumSpanningTreeKruskal(int start) {
+        final Edge[] result = new Edge[_numvertices]; // Tnis will store the resultant MST
+        int e = 0;  // An index variable, used for result[] 
+        int i = 0;  // An index variable, used for sorted edges 
+//        for (i = 0; i < _numvertices; ++i) 
+//            result[i] = new Edge(); 
+  
+        // Step 1:  Sort all the edges in non-decreasing order of their 
+        // weight.  If we are not allowed to change the given graph, we 
+        // can create a copy of array of edges 
+        Arrays.sort(_edges); 
+  
+        // Allocate memory for creating _numvertices subsets 
+        EdgeSubset subsets[] = new EdgeSubset[_numvertices]; 
+        for (i = 0; i < _numvertices; ++i) 
+            subsets[i] = new EdgeSubset(); 
+  
+        // Create V subsets with single elements 
+        for (int v = 0; v < _numvertices; ++v)  {
+            subsets[v].parent(v);
+            subsets[v].rank(0);
+        }
+  
+        i = 0;  // Index used to pick next edge
+        // Number of edges to be taken is equal to V-1
+        while (e < (_numvertices - 1)) {
+            // Step 2: Pick the smallest edge. And increment
+            // the index for next iteration
+            Edge next_edge = _edges[i++];
+            int x = find(subsets, next_edge.first());
+            int y = find(subsets, next_edge.second());
+            // If including this edge does't cause cycle,
+            // include it in result and increment the index
+            // of result for next edge
+            if (x != y) { 
+                result[e++] = next_edge;
+                union(subsets, x, y);
+            } 
+            // Else discard the next_edge 
+        } 
+  
+        // print the contents of result[] to display 
+        // the built MST 
+//        System.out.println("Following are the edges in " +  
+//                                     "the constructed MST"); 
+//        for (i = 0; i < e; ++i) 
+//            System.out.println(result[i]); 
         return result;
     }
 
@@ -218,12 +313,42 @@ public class Graph {
         return result;
     }
 
-    public class Edge extends Pair<Integer, Integer> {
+    public class Edge extends Pair<Integer, Integer> implements Comparable<Edge> {
+        private final int _weight;
 
         public Edge(Integer frst, Integer scnd) {
             super(frst, scnd);
+            _weight = 0;
         }
-    	
+
+        public Edge(Integer frst, Integer scnd, Integer wght) {
+            super (frst, scnd);
+            _weight = wght;
+        }
+
+        public int weight() { return _weight; }
+
+        @Override
+        public int compareTo(Edge other) {
+        	return (_weight - other._weight);
+        }
+
+        @Override
+        public String toString() {
+            return ("(from[" + _first + "] to [" + _second + "] weight[" + _weight + "]");
+        }
+
+    }
+
+    class EdgeSubset {
+        private Integer _parent;
+        private Integer _rank;
+
+        public int parent() { return _parent; }
+        public void parent(Integer v) { _parent = v; }
+        public int rank() { return _rank; }
+        public void rank(Integer v) { _rank = v; }
+        public void rankInc() { _rank++; }
     }
 
     public void clear() {

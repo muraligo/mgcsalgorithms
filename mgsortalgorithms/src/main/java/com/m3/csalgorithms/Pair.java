@@ -1,8 +1,8 @@
 package com.m3.csalgorithms;
 
 public class Pair<S, T> {
-    private final S _first;
-    private final T _second;
+    protected final S _first;
+    protected final T _second;
 
     public Pair(S frst, T scnd) {
         _first = frst;
