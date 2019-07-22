@@ -17,6 +17,7 @@ public class Graph {
     private final int _numvertices;
     private final ArrayList<Integer>[] _vertices;
     private final Edge[] _edges;
+    private final boolean _ranksMatter;
 
     @SuppressWarnings("unchecked")
 	public Graph(int n, List<Pair<Integer, Integer>> edges) {
@@ -32,6 +33,7 @@ public class Graph {
             _edges[jx] = new Edge(edge.first(), edge.second());
             jx++;
         }
+        _ranksMatter = false;
     }
 
     @SuppressWarnings("unchecked")
@@ -52,6 +54,7 @@ public class Graph {
             }
             jx++;
         }
+        _ranksMatter = true;
     }
 
     public int numberOfVertices() { return _numvertices; }
@@ -149,74 +152,66 @@ public class Graph {
      * If both the vertices are in the same subset, a cycle is found.
      */
     public boolean detectCyclesUnionFind() {
-        // Allocate memory for creating V subsets 
-        int parent[] = new int[_numvertices]; 
-        // Initialize all subsets as single element sets 
-        for (int ix = 0; ix < _numvertices; ++ix) 
-            parent[ix] = -1; 
+        int i = 0;  // An index variable, used for sorted edges
+        // Allocate memory for creating _numvertices subsets
+        EdgeSubset subsets[] = new EdgeSubset[_numvertices];
+        for (i = 0; i < _numvertices; ++i)
+            subsets[i] = new EdgeSubset();
+        // Initialize all subsets as single element sets
+        for (int v = 0; v < _numvertices; ++v)  {
+            subsets[v].parent(v);
+            subsets[v].rank(0);
+        }
   
-        // Iterate through all edges of graph, find subset of both 
-        // vertices of every edge, if both subsets are same, then 
-        // there is cycle in graph. 
+        // Iterate through all edges of graph, find subset of both
+        // vertices of every edge, if both subsets are same, then
+        // there is cycle in graph.
         for (int ix = 0; ix < _edges.length; ++ix) {
             System.out.print("Checking index [" + ix + "] ");
-            int x = find(parent, _edges[ix].first());
+            int x = find(subsets, _edges[ix].first());
             System.out.print("x=[" + x + "] ");
-            int y = find(parent, _edges[ix].second());
+            int y = find(subsets, _edges[ix].second());
             System.out.print("y=[" + y + "] ");
             if (x == y) {
                 System.out.println("Cycle found");
                 return true;
             }
             System.out.println("No cycles so union");
-            union(parent, x, y);
+            union(subsets, x, y);
         }
         return false;
-    }
-
-    private void union(int[] parent, int x, int y) {
-        int xsubset = find(parent, x);
-        int ysubset = find(parent, y);
-        // choose any as parent in the edge
-        parent[xsubset] = ysubset;
-        System.out.println("    Setting parent of xsubset=[" + xsubset + "] to ysubset=[" + ysubset + "]");
-    }
-
-    private int find(int[] parent, Integer i) {
-        if (parent[i] == -1) {
-            System.out.print("Parent found ");
-            return i; 
-        }
-        System.out.print("to index [" + parent[i] + "] ");
-        return find(parent, parent[i]); 
     }
 
     // A utility function to find set of an element i 
     // (uses path compression technique) 
     private int find(EdgeSubset subsets[], int i) { 
         // find root and make root as parent of i (path compression) 
-        if (subsets[i].parent() != i) 
-            subsets[i].parent(find(subsets, subsets[i].parent())); 
+        if (subsets[i].parent() != i) {
+            System.out.print("to index [" + subsets[i].parent() + "] ");
+            subsets[i].parent(find(subsets, subsets[i].parent()));
+        }
+        System.out.print("Parent found ");
         return subsets[i].parent(); 
     } 
   
-    // A function that does union of two sets of x and y 
-    // (uses union by rank) 
-    private void union(EdgeSubset subsets[], int x, int y) { 
-        int xroot = find(subsets, x); 
-        int yroot = find(subsets, y); 
+    // A function that does union of two sets of x and y
+    // (uses union by rank)
+    private void union(EdgeSubset subsets[], int x, int y) {
+        int xroot = find(subsets, x);
+        int yroot = find(subsets, y);
   
-        // Attach smaller rank tree under root of high rank tree 
-        // (Union by Rank) 
-        if (subsets[xroot].rank() < subsets[yroot].rank()) 
-            subsets[xroot].parent(yroot); 
-        else if (subsets[xroot].rank() > subsets[yroot].rank()) 
-            subsets[yroot].parent(xroot); 
-        // If ranks are same, then make one as root and increment 
-        // its rank by one 
-        else { 
-            subsets[yroot].parent(xroot); 
-            subsets[xroot].rankInc(); 
+        // Attach smaller rank tree under root of high rank tree
+        // (Union by Rank)
+        if (subsets[xroot].rank() < subsets[yroot].rank())
+            subsets[xroot].parent(yroot);
+        else if (subsets[xroot].rank() > subsets[yroot].rank())
+            subsets[yroot].parent(xroot);
+        // If ranks are same, then make one as root and increment its rank by one
+        else {
+            subsets[yroot].parent(xroot);
+            if (_ranksMatter)
+                subsets[xroot].rankInc();
+            System.out.println("    Setting parent of xsubset=[" + xroot + "] to ysubset=[" + yroot + "]");
         }
     }
 
@@ -238,17 +233,20 @@ public class Graph {
      * 3. Repeat step#2 until there are (V-1) edges in the spanning tree.
      * This is a Greedy Algorithm in that, it picks the smallest weight edge 
      * that does not cause a cycle in the MST constructed so far.
+     * Time Complexity: O(ElogE) or O(ElogV). Sorting of edges takes O(ELogE) time. 
+     * After sorting, we iterate through all edges and apply find-union algorithm. 
+     * The find and union operations can take atmost O(LogV) time. 
+     * So overall complexity is O(ELogE + ELogV) time. 
+     * The value of E can be at most O(V2), so O(LogV) are O(LogE) same. 
+     * Therefore, overall time complexity is O(ElogE) or O(ElogV)
      */
     public Edge[] minimumSpanningTreeKruskal(int start) {
-        final Edge[] result = new Edge[_numvertices]; // Tnis will store the resultant MST
+        final Edge[] result = new Edge[_numvertices]; // This will store the resultant MST
         int e = 0;  // An index variable, used for result[] 
         int i = 0;  // An index variable, used for sorted edges 
-//        for (i = 0; i < _numvertices; ++i) 
-//            result[i] = new Edge(); 
   
-        // Step 1:  Sort all the edges in non-decreasing order of their 
-        // weight.  If we are not allowed to change the given graph, we 
-        // can create a copy of array of edges 
+        // Step 1:  Sort all the edges in non-decreasing order of their weight. If we are
+        // not allowed to change the given graph, we can create a copy of array of edges 
         Arrays.sort(_edges); 
   
         // Allocate memory for creating _numvertices subsets 
@@ -256,7 +254,7 @@ public class Graph {
         for (i = 0; i < _numvertices; ++i) 
             subsets[i] = new EdgeSubset(); 
   
-        // Create V subsets with single elements 
+        // Create _numvertices subsets with single elements 
         for (int v = 0; v < _numvertices; ++v)  {
             subsets[v].parent(v);
             subsets[v].rank(0);
@@ -290,14 +288,32 @@ public class Graph {
     }
 
     /*
-     * Given a graph and a source vertex in the graph, find shortest paths 
-     * from source to all vertices in the given graph.
-     * Dijkstra’s algorithm is very similar to Prim’s algorithm for minimum 
-     * spanning tree. Like Prim’s MST, we generate a SPT (shortest path tree) 
-     * with given source as root.
+     * Prim’s algorithm is also a Greedy algorithm. It starts with an empty spanning tree. 
+     * The idea is to maintain two sets of vertices. The first set contains the vertices 
+     * already included in the MST, the other set contains the vertices not yet included. 
+     * At every step, it considers all the edges that connect the two sets, and 
+     * picks the minimum weight edge from these edges. After picking the edge, 
+     * it moves the other endpoint of the edge to the set containing MST.
+     * A group of edges that connects two set of vertices in a graph is called cut 
+     * in graph theory. So, at every step of Prim’s algorithm, we find a cut (of 
+     * two sets, one contains the vertices already included in MST and other contains 
+     * rest of the vertices), pick the minimum weight edge from the cut and 
+     * include this vertex to MST Set (the set that contains already included vertices).
+     * How does Prim’s Algorithm Work? 
+     * The idea behind Prim’s algorithm is simple, a spanning tree means all vertices 
+     * must be connected. So the two disjoint subsets (discussed above) of vertices 
+     * must be connected to make a Spanning Tree. And they must be connected with the 
+     * minimum weight edge to make it a Minimum Spanning Tree.
      */
     public List<Integer> minimumSpanningTreePrim(int start) {
         final List<Integer> result = new ArrayList<Integer>();
+        final List<Integer> others = new ArrayList<Integer>();
+        for (int ix = 0; ix < _numvertices; ix++) {
+            if (!_vertices[ix].isEmpty() && !others.contains(ix) && ix != start)
+                others.add(ix);
+        }
+        result.add(start);
+        // TODO fix this
         return result;
     }
 
@@ -311,33 +327,6 @@ public class Graph {
     public List<Integer> shortestPathDjikstra(int start) {
         final List<Integer> result = new ArrayList<Integer>();
         return result;
-    }
-
-    public class Edge extends Pair<Integer, Integer> implements Comparable<Edge> {
-        private final int _weight;
-
-        public Edge(Integer frst, Integer scnd) {
-            super(frst, scnd);
-            _weight = 0;
-        }
-
-        public Edge(Integer frst, Integer scnd, Integer wght) {
-            super (frst, scnd);
-            _weight = wght;
-        }
-
-        public int weight() { return _weight; }
-
-        @Override
-        public int compareTo(Edge other) {
-        	return (_weight - other._weight);
-        }
-
-        @Override
-        public String toString() {
-            return ("(from[" + _first + "] to [" + _second + "] weight[" + _weight + "]");
-        }
-
     }
 
     class EdgeSubset {
