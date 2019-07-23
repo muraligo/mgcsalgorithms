@@ -329,7 +329,7 @@ public class Graph {
         return result;
     }
 
-    class EdgeSubset {
+    private class EdgeSubset {
         private Integer _parent;
         private Integer _rank;
 
